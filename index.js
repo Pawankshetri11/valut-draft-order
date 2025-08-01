@@ -1,28 +1,40 @@
 const express = require('express');
-const app = express();
+const cors = require('cors');
 const axios = require('axios');
 require('dotenv').config();
 
-app.get('/create-draft-order', async (req, res) => {
+const app = express();
+
+app.use(cors()); // Enable CORS for frontend access
+app.use(express.json());
+
+// Health check
+app.get('/', (req, res) => {
+  res.send('✅ Vault Checkout API is running');
+});
+
+// Draft order creation endpoint
+app.post('/create-draft-order', async (req, res) => {
   try {
-    const { items, email, note } = req.query;
-
-    if (!items) return res.status(400).json({ error: 'Missing items data' });
-
-    const parsedItems = JSON.parse(decodeURIComponent(items));
+    const { line_items, customer_email, note } = req.body;
 
     const draftOrderData = {
       draft_order: {
-        line_items: parsedItems.map(item => ({
-          variant_id: Number(item.variant_id),
-          quantity: Number(item.quantity),
-          properties: item.custom_price
-            ? { "Custom Price": item.custom_price }
-            : undefined,
-          price: item.custom_price || undefined
-        })),
+        line_items: line_items.map(item => {
+          const lineItem = {
+            variant_id: item.variant_id,
+            quantity: item.quantity
+          };
+
+          if (item.custom_price) {
+            lineItem.properties = { "Custom Price": item.custom_price };
+            lineItem.price = item.custom_price;
+          }
+
+          return lineItem;
+        }),
         note: note || 'Vault checkout',
-        email: email || undefined,
+        email: customer_email || undefined,
         use_customer_default_address: true
       }
     };
@@ -44,10 +56,10 @@ app.get('/create-draft-order', async (req, res) => {
 
     const invoice_url = response.data.draft_order?.invoice_url;
     if (!invoice_url) {
-      return res.status(500).json({ error: 'No invoice URL received.' });
+      return res.status(500).json({ error: 'No invoice URL received from Shopify' });
     }
 
-    res.redirect(invoice_url); // ✅ Auto-redirect to checkout
+    res.json({ url: invoice_url });
   } catch (error) {
     console.error('❌ Error creating draft order:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to create draft order' });
