@@ -3,24 +3,26 @@ const app = express();
 const axios = require('axios');
 require('dotenv').config();
 
-app.use(express.json());
-
-app.post('/create-draft-order', async (req, res) => {
+app.get('/create-draft-order', async (req, res) => {
   try {
-    const { line_items, customer_email, note } = req.body;
+    const { items, email, note } = req.query;
+
+    if (!items) return res.status(400).json({ error: 'Missing items data' });
+
+    const parsedItems = JSON.parse(decodeURIComponent(items));
 
     const draftOrderData = {
       draft_order: {
-        line_items: line_items.map(item => ({
-          variant_id: item.variant_id,
-          quantity: item.quantity,
+        line_items: parsedItems.map(item => ({
+          variant_id: Number(item.variant_id),
+          quantity: Number(item.quantity),
           properties: item.custom_price
             ? { "Custom Price": item.custom_price }
             : undefined,
           price: item.custom_price || undefined
         })),
         note: note || 'Vault checkout',
-        email: customer_email || undefined,
+        email: email || undefined,
         use_customer_default_address: true
       }
     };
@@ -45,7 +47,7 @@ app.post('/create-draft-order', async (req, res) => {
       return res.status(500).json({ error: 'No invoice URL received.' });
     }
 
-    res.json({ url: invoice_url });
+    res.redirect(invoice_url); // ✅ Auto-redirect to checkout
   } catch (error) {
     console.error('❌ Error creating draft order:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to create draft order' });
