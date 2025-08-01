@@ -1,19 +1,21 @@
 const express = require('express');
-const cors = require('cors');
+const app = express();
 const axios = require('axios');
 require('dotenv').config();
 
-const app = express();
-
-app.use(cors()); // Enable CORS for frontend access
 app.use(express.json());
 
-// Health check
+// ✅ Root check
 app.get('/', (req, res) => {
   res.send('✅ Vault Checkout API is running');
 });
 
-// Draft order creation endpoint
+// ✅ GET /create-draft-order (for browser test)
+app.get('/create-draft-order', (req, res) => {
+  res.send('✅ This route is for POST only — use Postman or frontend.');
+});
+
+// ✅ POST /create-draft-order (main logic)
 app.post('/create-draft-order', async (req, res) => {
   try {
     const { line_items, customer_email, note } = req.body;
@@ -21,17 +23,15 @@ app.post('/create-draft-order', async (req, res) => {
     const draftOrderData = {
       draft_order: {
         line_items: line_items.map(item => {
-          const lineItem = {
+          let line = {
             variant_id: item.variant_id,
             quantity: item.quantity
           };
-
           if (item.custom_price) {
-            lineItem.properties = { "Custom Price": item.custom_price };
-            lineItem.price = item.custom_price;
+            line.properties = { "Custom Price": item.custom_price };
+            line.price = item.custom_price;
           }
-
-          return lineItem;
+          return line;
         }),
         note: note || 'Vault checkout',
         email: customer_email || undefined,
@@ -56,15 +56,20 @@ app.post('/create-draft-order', async (req, res) => {
 
     const invoice_url = response.data.draft_order?.invoice_url;
     if (!invoice_url) {
-      return res.status(500).json({ error: 'No invoice URL received from Shopify' });
+      return res.status(500).json({ error: '❌ No invoice URL received.' });
     }
 
+    console.log('✅ Draft Order Created:', invoice_url);
     res.json({ url: invoice_url });
+
   } catch (error) {
     console.error('❌ Error creating draft order:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to create draft order' });
   }
 });
 
+// ✅ Start the server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
