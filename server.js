@@ -8,6 +8,16 @@ app.get('/create-draft-order', async (req, res) => {
     if (!variant_ids || !prices || !quantities) {
       return res.status(400).send('Missing item data');
     }
+const draftLineItems = line_items.map((item) => {
+  if (!item.variant_id || !item.price) {
+    throw new Error('Missing variant_id or price');
+  }
+  return {
+    variant_id: item.variant_id,
+    quantity: item.quantity || 1,
+    price: parseFloat(item.price).toFixed(2),
+  };
+});
 
     const line_items = [].concat(variant_ids).map((variantId, index) => ({
       variant_id: parseInt(variantId),
