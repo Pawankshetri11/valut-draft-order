@@ -5,26 +5,34 @@ app.get('/create-draft-order', async (req, res) => {
     const prices = req.query['price[]'];
     const quantities = req.query['quantity[]'];
 
+    // Ensure all necessary query params are present
     if (!variant_ids || !prices || !quantities) {
       return res.status(400).send('Missing item data');
     }
-const draftLineItems = line_items.map((item) => {
-  if (!item.variant_id || !item.price) {
-    throw new Error('Missing variant_id or price');
-  }
-  return {
-    variant_id: item.variant_id,
-    quantity: item.quantity || 1,
-    price: parseFloat(item.price).toFixed(2),
-  };
-});
 
-    const line_items = [].concat(variant_ids).map((variantId, index) => ({
-      variant_id: parseInt(variantId),
-      quantity: parseInt([].concat(quantities)[index]) || 1,
-      price: parseFloat([].concat(prices)[index]).toFixed(2)
-    }));
+    // Normalize all query values into arrays
+    const variantArray = [].concat(variant_ids);
+    const priceArray = [].concat(prices);
+    const quantityArray = [].concat(quantities);
 
+    // Build line_items array
+    const line_items = variantArray.map((variantId, index) => {
+      const variant_id = parseInt(variantId);
+      const price = parseFloat(priceArray[index]);
+      const quantity = parseInt(quantityArray[index]) || 1;
+
+      if (!variant_id || isNaN(price)) {
+        throw new Error(`Missing or invalid variant_id or price at index ${index}`);
+      }
+
+      return {
+        variant_id,
+        quantity,
+        price: price.toFixed(2)
+      };
+    });
+
+    // Build draft order payload
     const draftOrderPayload = {
       draft_order: {
         email: email || undefined,
@@ -34,17 +42,23 @@ const draftLineItems = line_items.map((item) => {
       }
     };
 
-    const response = await axios.post(`${SHOPIFY_API_BASE}/draft_orders.json`, draftOrderPayload, {
-      headers: {
-        'X-Shopify-Access-Token': ADMIN_API_TOKEN,
-        'Content-Type': 'application/json'
+    // Send request to Shopify API
+    const response = await axios.post(
+      `${SHOPIFY_API_BASE}/draft_orders.json`,
+      draftOrderPayload,
+      {
+        headers: {
+          'X-Shopify-Access-Token': ADMIN_API_TOKEN,
+          'Content-Type': 'application/json'
+        }
       }
-    });
+    );
 
     const invoiceUrl = response.data.draft_order.invoice_url;
     console.log('✅ Draft Order Created (GET):', invoiceUrl);
 
-    return res.redirect(invoiceUrl); // Redirect to checkout
+    // Redirect customer to invoice URL
+    return res.redirect(invoiceUrl);
 
   } catch (err) {
     console.error('❌ GET Error:', err.response?.data || err.message);
