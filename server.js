@@ -3,11 +3,6 @@ const axios = require('axios');
 const cors = require('cors');
 require('dotenv').config();
 
-const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
-require('dotenv').config();
-
 const app = express();
 
 // Allow requests only from your Shopify store
@@ -31,19 +26,12 @@ app.use(express.json());
 const SHOPIFY_API_BASE = `https://${process.env.SHOPIFY_STORE}/admin/api/${process.env.SHOPIFY_API_VERSION}`;
 const ADMIN_API_TOKEN = process.env.SHOPIFY_API_TOKEN;
 
-
-
-
-
-
-
-
-// Root endpoint (test)
+// Root endpoint
 app.get('/', (req, res) => {
   res.send('✅ Vault Checkout App is running');
 });
 
-// Create Draft Order Endpoint
+// ✅ POST Endpoint (optional, kept for testing or future)
 app.post('/create-draft-order', async (req, res) => {
   try {
     const { customer_email, line_items, note } = req.body;
@@ -52,22 +40,16 @@ app.post('/create-draft-order', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing line_items' });
     }
 
-    // Build line_items for Shopify Draft Order API
     const draftLineItems = line_items.map(item => {
       const line = {
         variant_id: item.variant_id,
         quantity: item.quantity || 1
       };
-
-      // If custom price is included, use it
       if (item.custom_price) {
         line.price = parseFloat(item.custom_price).toFixed(2);
       }
-
       return line;
     });
-
-    console.log('🛒 Draft Line Items:', draftLineItems);
 
     const draftOrderPayload = {
       draft_order: {
@@ -78,25 +60,63 @@ app.post('/create-draft-order', async (req, res) => {
       }
     };
 
-    const response = await axios.post(
-      `${SHOPIFY_API_BASE}/draft_orders.json`,
-      draftOrderPayload,
-      {
-        headers: {
-          'X-Shopify-Access-Token': ADMIN_API_TOKEN,
-          'Content-Type': 'application/json'
-        }
+    const response = await axios.post(`${SHOPIFY_API_BASE}/draft_orders.json`, draftOrderPayload, {
+      headers: {
+        'X-Shopify-Access-Token': ADMIN_API_TOKEN,
+        'Content-Type': 'application/json'
       }
-    );
+    });
 
     const invoiceUrl = response.data.draft_order.invoice_url;
-    console.log('✅ Draft Order Created:', invoiceUrl);
+    console.log('✅ Draft Order Created (POST):', invoiceUrl);
 
     return res.status(200).json({ success: true, url: invoiceUrl });
 
   } catch (err) {
-    console.error('❌ Error creating draft order:', err.response?.data || err.message);
+    console.error('❌ POST Error creating draft order:', err.response?.data || err.message);
     return res.status(500).json({ success: false, error: 'Failed to create draft order' });
+  }
+});
+
+// ✅ GET Endpoint (for frontend link-based use)
+app.get('/create-draft-order', async (req, res) => {
+  try {
+    const { email, variant_id, quantity, price, note } = req.query;
+
+    if (!variant_id || !price) {
+      return res.status(400).send('Missing variant_id or price');
+    }
+
+    const line_items = [{
+      variant_id: parseInt(variant_id),
+      quantity: parseInt(quantity) || 1,
+      price: parseFloat(price).toFixed(2)
+    }];
+
+    const draftOrderPayload = {
+      draft_order: {
+        email: email || undefined,
+        line_items,
+        note: note || 'Vault GET checkout',
+        use_customer_default_address: true
+      }
+    };
+
+    const response = await axios.post(`${SHOPIFY_API_BASE}/draft_orders.json`, draftOrderPayload, {
+      headers: {
+        'X-Shopify-Access-Token': ADMIN_API_TOKEN,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const invoiceUrl = response.data.draft_order.invoice_url;
+    console.log('✅ Draft Order Created (GET):', invoiceUrl);
+
+    return res.redirect(invoiceUrl); // Redirect user directly to checkout
+
+  } catch (err) {
+    console.error('❌ GET Error creating draft order:', err.response?.data || err.message);
+    return res.status(500).send('Failed to create draft order');
   }
 });
 
