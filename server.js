@@ -3,13 +3,40 @@ const axios = require('axios');
 const cors = require('cors');
 require('dotenv').config();
 
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+require('dotenv').config();
+
 const app = express();
-app.use(cors());
+
+// Allow requests only from your Shopify store
+const allowedOrigins = [
+  'https://essence-essential-oils1.myshopify.com',
+  'https://checkout.shopify.com'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
+
 app.use(express.json());
 
-// Shopify Admin API Base
 const SHOPIFY_API_BASE = `https://${process.env.SHOPIFY_STORE}/admin/api/${process.env.SHOPIFY_API_VERSION}`;
 const ADMIN_API_TOKEN = process.env.SHOPIFY_API_TOKEN;
+
+
+
+
+
+
+
 
 // Root endpoint (test)
 app.get('/', (req, res) => {
